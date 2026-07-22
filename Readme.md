@@ -31,11 +31,11 @@ Enter the name of the CSV file to process (e.g., grades.csv): grades.csv
 
 ### What it does
 
-- **Score validation** — every score must be between 0 and 100.
-- **Weight validation** — weights must total **100**, with **Formative = 60** and **Summative = 40**.
+- **Score validation**: every score must be between 0 and 100.
+- **Weight validation**: weights must total **100**, with **Formative = 60** and **Summative = 40**.
 - **GPA** — `GPA = (Total Grade / 100) * 5.0`.
-- **Pass/Fail** — a student passes only with **≥ 50% in BOTH** the Formative and Summative categories.
-- **Resubmission** — if the student failed, the failed formative assignment(s) with the **highest weight** are listed. Ties are all shown.
+- **Pass/Fail**: a student passes only with **≥ 50% in BOTH** the Formative and Summative categories.
+- **Resubmission**: if the student failed, the failed formative assignment(s) with the **highest weight** are listed. Ties are all shown.
 
 ### CSV format
 
