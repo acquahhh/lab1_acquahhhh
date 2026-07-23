@@ -26,6 +26,7 @@ def load_csv_data():
         with open(filename, mode='r', encoding='utf-8') as file:
             reader = csv.DictReader(file)
 
+            # Guard against a headerless / totally empty file
             if reader.fieldnames is None:
                 print(f"Error: The file '{filename}' is empty. Nothing to process.")
                 sys.exit(1)
@@ -37,6 +38,7 @@ def load_csv_data():
                 sys.exit(1)
 
             for line_no, row in enumerate(reader, start=2):
+                # Skip completely blank rows
                 if all((v is None or str(v).strip() == "") for v in row.values()):
                     continue
                 try:
@@ -92,8 +94,18 @@ def validate_weights(data):
     return ok
 
 
+def category_points(data, group):
+    """
+    Weighted points earned in a category, on the category's own scale.
+    e.g. Formative is out of 60, Summative is out of 40.
+    This matches the 'Final weight' column of the official transcript.
+    """
+    items = [i for i in data if i['group'].lower() == group.lower()]
+    return sum(i['score'] * i['weight'] / 100 for i in items)
+
+
 def category_percentage(data, group):
-    """Weighted percentage achieved within a single category."""
+    """Weighted percentage achieved within a single category (0-100%)."""
     items = [i for i in data if i['group'].lower() == group.lower()]
     weight_sum = sum(i['weight'] for i in items)
     if weight_sum == 0:
@@ -115,15 +127,23 @@ def evaluate_grades(data):
         print("\nValidation failed. Please fix the errors above before grading.")
         return
 
+    # c) Final grade and GPA. Total grade = sum(score * weight)/100 since weights total 100.
     total_grade = sum(i['score'] * i['weight'] for i in data) / TOTAL_WEIGHT
     gpa = (total_grade / 100) * 5.0
 
     formative_pct = category_percentage(data, 'Formative')
     summative_pct = category_percentage(data, 'Summative')
 
+    # Points on the category's own scale (Formative /60, Summative /40),
+    # matching the official transcript's "Final weight" totals.
+    formative_pts = category_points(data, 'Formative')
+    summative_pts = category_points(data, 'Summative')
+
+    # d) Pass requires >= 50% in BOTH categories
     passed = formative_pct >= PASS_MARK and summative_pct >= PASS_MARK
     status = "PASSED" if passed else "FAILED"
 
+    # e) Failed formative assignments (< 50%), find highest-weight one(s)
     failed_formative = [i for i in data
                         if i['group'].lower() == 'formative' and i['score'] < PASS_MARK]
     resubmission = []
@@ -131,30 +151,40 @@ def evaluate_grades(data):
         max_weight = max(i['weight'] for i in failed_formative)
         resubmission = [i for i in failed_formative if i['weight'] == max_weight]
 
+    # ---- Transcript-style report ----
     print("\n================ TRANSCRIPT ================")
     print(f"{'Assignment':<38}{'Group':<12}{'Score':>7}{'Weight':>8}")
     print("-" * 65)
     for i in data:
         print(f"{i['assignment']:<38}{i['group']:<12}{i['score']:>7.1f}{i['weight']:>8.1f}")
     print("-" * 65)
-    print(f"Formative Score : {formative_pct:.2f}%  (Pass mark {PASS_MARK}%)")
-    print(f"Summative Score : {summative_pct:.2f}%  (Pass mark {PASS_MARK}%)")
+    print(f"Formatives ({FORMATIVE_WEIGHT:.0f}) : {formative_pts:.2f}"
+          f"   [{formative_pct:.2f}%  Pass mark {PASS_MARK}%]")
+    print(f"Summatives ({SUMMATIVE_WEIGHT:.0f}) : {summative_pts:.2f}"
+          f"   [{summative_pct:.2f}%  Pass mark {PASS_MARK}%]")
     print(f"Final Grade     : {total_grade:.2f}%")
     print(f"GPA             : {gpa:.2f} / 5.0")
     print(f"Final Status    : {status}")
 
-    if not passed and resubmission:
+    # f) Resubmission report
+    # Resubmission is offered for failed formative assignments regardless of
+    # the overall status, matching the official transcript.
+    if resubmission:
+        names = ", ".join(r['assignment'] for r in resubmission)
+        print(f"Available for resubmission : {names}")
         print("\n--- Resubmission Eligibility ---")
         for r in resubmission:
             print(f"  Eligible: {r['assignment']} "
                   f"(score {r['score']:.1f}, weight {r['weight']:.1f})")
-    elif passed:
-        print("\nNo resubmission required. Congratulations!")
     else:
-        print("\nStudent failed but has no failed formative assignments to resubmit.")
+        print("Available for resubmission : None")
+        print("\nNo failed formative assignments. Nothing to resubmit.")
     print("============================================")
 
 
 if __name__ == "__main__":
+    # 1. Load the data
     course_data = load_csv_data()
+
+    # 2. Process the features
     evaluate_grades(course_data)
